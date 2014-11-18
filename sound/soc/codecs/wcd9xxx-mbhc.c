@@ -3099,7 +3099,6 @@ static void wcd9xxx_correct_swch_plug(struct work_struct *work)
 
 	mbhc = container_of(work, struct wcd9xxx_mbhc, correct_plug_swch);
 	codec = mbhc->codec;
-	mbhc->poll_swch_on = true;
 
 	current_source_enable = (((mbhc->mbhc_cfg->cs_enable_flags &
 		      (1 << MBHC_CS_ENABLE_POLLING)) != 0) &&
@@ -3278,7 +3277,6 @@ static void wcd9xxx_correct_swch_plug(struct work_struct *work)
 		WCD9XXX_BCL_UNLOCK(mbhc->resmgr);
 	}
 	pr_debug("%s: leave current_plug(%d)\n", __func__, mbhc->current_plug);
-	mbhc->poll_swch_on = false;
 	/* unlock sleep */
 	wcd9xxx_unlock_sleep(mbhc->resmgr->core_res);
 }
@@ -3306,8 +3304,6 @@ static void wcd9xxx_swch_irq_handler(struct wcd9xxx_mbhc *mbhc)
 	pr_debug("%s: Current plug type %d, insert %d\n", __func__,
 		 mbhc->current_plug, insert);
 	if ((mbhc->current_plug == PLUG_TYPE_NONE) && insert) {
-		if (mbhc->poll_swch_on)
-			goto exit;
 
 		mbhc->lpi_enabled = false;
 		wmb();
@@ -3316,9 +3312,13 @@ static void wcd9xxx_swch_irq_handler(struct wcd9xxx_mbhc *mbhc)
 				      &mbhc->correct_plug_swch);
 
 		if ((mbhc->current_plug != PLUG_TYPE_NONE) &&
+		    (mbhc->current_plug != PLUG_TYPE_HIGH_HPH) &&
 		    !(snd_soc_read(codec, WCD9XXX_A_MBHC_INSERT_DETECT) &
-				   (1 << 1)))
+				   (1 << 1))) {
+			pr_debug("%s: current plug: %d\n", __func__,
+				mbhc->current_plug);
 			goto exit;
+		}
 
 		/* Disable Mic Bias pull down and HPH Switch to GND */
 		snd_soc_update_bits(codec, mbhc->mbhc_bias_regs.ctl_reg, 0x01,
@@ -5353,7 +5353,6 @@ int wcd9xxx_mbhc_init(struct wcd9xxx_mbhc *mbhc, struct wcd9xxx_resmgr *resmgr,
 	mbhc->current_plug = PLUG_TYPE_NONE;
 	mbhc->lpi_enabled = false;
 	mbhc->no_mic_headset_override = false;
-	mbhc->poll_swch_on = false;
 	mbhc->mbhc_last_resume = 0;
 	mbhc->codec = codec;
 	mbhc->resmgr = resmgr;
