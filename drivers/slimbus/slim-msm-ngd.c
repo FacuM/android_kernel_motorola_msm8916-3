@@ -1137,6 +1137,7 @@ static int ngd_slim_rx_msgq_thread(void *data)
 		if (ret) {
 			SLIM_ERR(dev, "rx_msgq_get() failed 0x%x\n", ret);
 			continue;
+
 		}
 
 		/* Wait for complete message */
