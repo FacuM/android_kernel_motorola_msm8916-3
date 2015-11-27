@@ -652,3 +652,4 @@ static inline int workqueue_sysfs_register(struct workqueue_struct *wq)
 #endif	/* CONFIG_SYSFS */
 
 #endif
+
