@@ -1086,8 +1086,8 @@ config TOUCHSCREEN_TOUCHX
 config TOUCHSCREEN_DOUBLETAP2WAKE
 	tristate "DoubleTap2Wake for touchscreens"
 	default y
-    help
-      Say Y here to support doubletap2wake
+	help
+	  Say Y here to support doubletap2wake
 
 config SWEEP2SLEEP
         tristate "Sweep to put device to sleep"
