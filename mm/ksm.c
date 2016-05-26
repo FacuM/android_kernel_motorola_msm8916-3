@@ -38,6 +38,7 @@
 #include <linux/oom.h>
 #include <linux/numa.h>
 #include <linux/show_mem_notifier.h>
+#include <linux/fb.h>
 
 #include <asm/tlbflush.h>
 #include "internal.h"
@@ -49,6 +50,8 @@
 #define NUMA(x)		(0)
 #define DO_NUMA(x)	do { } while (0)
 #endif
+
+struct notifier_block ksm_fb_notif;
 
 /*
  * A few notes about the KSM scanning process,
@@ -219,13 +222,13 @@ static unsigned long ksm_pages_unshared;
 static unsigned long ksm_rmap_items;
 
 /* Number of pages ksmd should scan in one batch */
-static unsigned int ksm_thread_pages_to_scan = 500;
+static unsigned int ksm_thread_pages_to_scan = 256;
 
 /* Milliseconds ksmd should sleep between batches */
-static unsigned int ksm_thread_sleep_millisecs = 2000;
+static unsigned int ksm_thread_sleep_millisecs = 1500;
 
 /* Boolean to indicate whether to use deferred timer or not */
-static bool use_deferred_timer;
+static bool use_deferred_timer = true;
 
 #ifdef CONFIG_NUMA
 /* Zeroed when merging across nodes is not allowed */
@@ -241,6 +244,7 @@ static int ksm_nr_node_ids = 1;
 #define KSM_RUN_UNMERGE	2
 #define KSM_RUN_OFFLINE	4
 static unsigned long ksm_run = KSM_RUN_MERGE;
+static unsigned long ksm_run_stored;
 static void wait_while_offlining(void);
 
 static DECLARE_WAIT_QUEUE_HEAD(ksm_thread_wait);
@@ -494,7 +498,7 @@ static struct page *get_mergeable_page(struct rmap_item *rmap_item)
 		flush_dcache_page(page);
 	} else {
 		put_page(page);
-out:		
+out:
 		page = NULL;
 	}
 	up_read(&mm->mmap_sem);
@@ -1292,9 +1296,9 @@ static struct stable_node *stable_tree_insert(struct page *kpage)
 	nid = get_kpfn_nid(kpfn);
 	root = root_stable_tree + nid;
 again:
-
 	parent = NULL;
 	new = &root->rb_node;
+
 	while (*new) {
 		struct page *tree_page;
 		int ret;
@@ -1307,13 +1311,14 @@ again:
 			 * If we walked over a stale stable_node,
 			 * get_ksm_page() will call rb_erase() and it
 			 * may rebalance the tree from under us. So
-	        	 * restart the search from scratch. Returning
+			 * restart the search from scratch. Returning
 			 * NULL would be safe too, but we'd generate
 			 * false negative insertions just because some
 			 * stable_node was stale.
 			 */
 			goto again;
 		}
+
 		ret = memcmp_pages(kpage, tree_page);
 		put_page(tree_page);
 
@@ -1721,7 +1726,7 @@ next_mm:
 		 * because the "mm_slot" is still hashed and
 		 * ksm_scan.mm_slot doesn't point to it anymore.
 		 */
-		    spin_unlock(&ksm_mmlist_lock)
+		spin_unlock(&ksm_mmlist_lock);
 	}
 
 	/* Repeat until we've completed scanning the whole list */
@@ -1732,6 +1737,7 @@ next_mm:
 	ksm_scan.seqnr++;
 	return NULL;
 }
+
 static inline int is_page_scanned(struct page *page)
 {
 #ifdef CONFIG_KSM_CHECK_PAGE
@@ -2437,7 +2443,7 @@ static ssize_t merge_across_nodes_store(struct kobject *kobj,
 			 * Allocate stable and unstable together:
 			 * MAXSMP NODES_SHIFT 10 will use 16kB.
 			 */
-		buf = kcalloc(nr_node_ids + nr_node_ids, sizeof(*buf),
+			buf = kcalloc(nr_node_ids + nr_node_ids, sizeof(*buf),
 				      GFP_KERNEL);
 			/* Let us assume that RB_ROOT is NULL is zero */
 			if (!buf)
@@ -2528,6 +2534,52 @@ static struct attribute_group ksm_attr_group = {
 };
 #endif /* CONFIG_SYSFS */
 
+static int ksm_fb_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	int *blank;
+	int err;
+
+	if (ksm_run == KSM_RUN_STOP && ksm_run_stored == KSM_RUN_STOP)
+		return 0;
+
+	mutex_lock(&ksm_thread_mutex);
+	wait_while_offlining();
+
+	if (event == FB_EVENT_BLANK) {
+		blank = evdata->data;
+
+		switch (*blank) {
+		case FB_BLANK_UNBLANK:
+			ksm_run = ksm_run_stored;
+			if (ksm_run & KSM_RUN_UNMERGE) {
+				set_current_oom_origin();
+				err = unmerge_and_remove_all_rmap_items();
+				clear_current_oom_origin();
+				if (err)
+					ksm_run = KSM_RUN_STOP;
+			}
+			break;
+		case FB_BLANK_POWERDOWN:
+			ksm_run_stored = ksm_run;
+			ksm_run = KSM_RUN_STOP;
+			break;
+		}
+	}
+
+	mutex_unlock(&ksm_thread_mutex);
+
+	if (ksm_run & KSM_RUN_MERGE)
+		wake_up_interruptible(&ksm_thread_wait);
+
+	return 0;
+}
+
+struct notifier_block ksm_fb_notif = {
+	.notifier_call = ksm_fb_notifier_callback,
+};
+
 static int __init ksm_init(void)
 {
 	struct task_struct *ksm_thread;
@@ -2556,12 +2608,18 @@ static int __init ksm_init(void)
 
 #endif /* CONFIG_SYSFS */
 
+	ksm_run_stored = ksm_run;
+
 #ifdef CONFIG_MEMORY_HOTREMOVE
 	/* There is no significance to this priority 100 */
 	hotplug_memory_notifier(ksm_memory_callback, 100);
 #endif
 
 	show_mem_notifier_register(&ksm_show_mem_notifier_block);
+
+	if (fb_register_client(&ksm_fb_notif))
+		printk(KERN_ERR "ksm: fb register failed\n");
+
 	return 0;
 
 out_free:
