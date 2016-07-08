@@ -192,12 +192,6 @@ config CPU_FREQ_DEFAULT_GOV_BIOSHOCK
 	help
 	  Default governor of BioShock kernel
 
-config CPU_FREQ_DEFAULT_GOV_LIONFISH
-	bool "lionfish"
-	select CPU_FREQ_GOV_LIONFISH
-	help
-	  Use the CPUFreq governor 'lionfish' as default.
-
 config CPU_FREQ_DEFAULT_GOV_SMARTMAX_EPS
         bool "smartmax_eps"
         select CPU_FREQ_GOV_SMARTMAX_EPS
@@ -453,6 +447,17 @@ config CPU_FREQ_GOV_BIOSHOCK
 	help
 	  'bioshock' - More aggressive version of conservative
 	  
+config CPU_FREQ_GOV_LIONHEART
+	tristate "'lionheart' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	  lionheart' - a "smart" optimized governor!
+	  If in doubt, say N.
+
+config CPU_FREQ_GOV_PRESERVATIVE
+	tristate "'preservative' cpufreq governor"
+	depends on CPU_FREQ
+
 config CPU_FREQ_GOV_LIONFISH
 	tristate "'lionfish' governor"
 	depends on CPU_FREQ
@@ -473,18 +478,7 @@ config CPU_FREQ_GOV_LIONFISH
 	  To compile this driver as a module, choose M here: the
 	  module will be called cpufreq_lionfish.
 
-	  If in doubt, say N.
-
-config CPU_FREQ_GOV_LIONHEART
-	tristate "'lionheart' cpufreq governor"
-	depends on CPU_FREQ
-	help
-	  lionheart' - a "smart" optimized governor!
-	  If in doubt, say N.
-
-config CPU_FREQ_GOV_PRESERVATIVE
-	tristate "'preservative' cpufreq governor"
-	depends on CPU_FREQ
+	  If in doubt, say N
 
 config CPU_BOOST
 	tristate "Event base short term CPU freq boost"
