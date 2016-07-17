@@ -6080,7 +6080,6 @@ void touch_suspend(void)
 }
 #endif
 
-
  /**
  * synaptics_rmi4_resume()
  *
