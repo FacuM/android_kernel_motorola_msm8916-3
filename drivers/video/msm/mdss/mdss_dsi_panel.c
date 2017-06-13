@@ -29,11 +29,10 @@
 #include "mdss_dsi.h"
 #include "mdss_fb.h"
 #include "mdss_dropbox.h"
+
 #ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
 #include <linux/input/doubletap2wake.h>
 #endif
-#include "mdss_livedisplay.h"
-#include <linux/hardware_info.h> //req  wuzhenzhen.wt 20140924 add for hardware info
 
 #define MDSS_PANEL_DEFAULT_VER 0xffffffffffffffff
 #define MDSS_PANEL_UNKNOWN_NAME "unknown"
