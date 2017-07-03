@@ -37,7 +37,7 @@
 #define MDSS_PANEL_DEFAULT_VER 0xffffffffffffffff
 #define MDSS_PANEL_UNKNOWN_NAME "unknown"
 #define DT_CMD_HDR 6
-#define MDSS_PWR_ON_RETRIES 5
+#define MDSS_PWR_ON_RETRIES 50
 
 /* NT35596 panel specific status variables */
 #define NT35596_BUF_3_STATUS 0x02
