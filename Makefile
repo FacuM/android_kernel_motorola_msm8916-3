@@ -1462,6 +1462,11 @@ clean := -f $(if $(KBUILD_SRC),$(srctree)/)scripts/Makefile.clean obj
 
 endif	# skip-makefile
 
+# dt image builder
+ifeq "$(TOP)" "./"
+include bootimage.mk
+endif
+
 PHONY += FORCE
 FORCE:
 
