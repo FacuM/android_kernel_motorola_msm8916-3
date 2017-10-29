@@ -14,7 +14,7 @@
  *
  * A very rough approximation to the sqrt() function.
  */
-unsigned long int_sqrt(unsigned long x)
+inline unsigned long int_sqrt(unsigned long x)
 {
 	register unsigned long tmp;
 	register unsigned long place;
@@ -41,6 +41,6 @@ unsigned long int_sqrt(unsigned long x)
 		place >>= 2;
 	}while (place != 0);
 
-	return y;
+	return root;
 }
 EXPORT_SYMBOL(int_sqrt);
