@@ -1,8 +1,8 @@
 VERSION = 3
 PATCHLEVEL = 10
 SUBLEVEL = 107
-EXTRAVERSION = -8.00
-NAME = Update!
+EXTRAVERSION = -2 1.00
+NAME = SomeFeaK2
 
 # Added by SQK
 TOP := $(dir $(lastword $(MAKEFILE_LIST)))
