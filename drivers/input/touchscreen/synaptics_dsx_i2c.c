@@ -46,6 +46,10 @@
 #include <linux/input/mt.h>
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+#include <linux/input/doubletap2wake.h>
+#endif
+
 #define DRIVER_NAME "synaptics_dsx_i2c"
 #define INPUT_PHYS_NAME "synaptics_dsx_i2c/input0"
 #define TYPE_B_PROTOCOL
@@ -115,6 +119,9 @@ static void synaptics_dsx_resumeinfo_touch(
 		struct synaptics_rmi4_data *rmi4_data);
 static void synaptics_dsx_free_patch(
 		struct synaptics_dsx_patch *patch);
+static void synaptics_dsx_modify_patch(
+		struct synaptics_dsx_patch *patch_set,
+		struct synaptics_dsx_func_patch *patch, bool remove);
 static struct synaptics_dsx_patch *
 		synaptics_dsx_init_patch(const char *name);
 static int synaptics_rmi4_set_page(
@@ -1778,7 +1785,7 @@ static void synaptics_dsx_patch_func(
 	function = regs->f_number & 0xff;
 	rt_mod = register_type_to_ascii(regs->f_number & 0xf00);
 	pr_debug("patching F%x%c\n",  function, rt_mod);
-	down(&patch->list_sema);
+	mutex_lock(&patch->list_mutex);
 	list_for_each_entry(fp, &patch->cfg_head, link) {
 		if (fp->func != f_number)
 			continue;
@@ -1869,7 +1876,7 @@ static void synaptics_dsx_patch_func(
 	}
 
 unlock_and_leave:
-	up(&patch->list_sema);
+	mutex_unlock(&patch->list_mutex);
 }
 
 static void synaptics_dsx_enable_wakeup_source(
@@ -2048,7 +2055,7 @@ static void synaptics_dsx_sensor_state(struct synaptics_rmi4_data *rmi4_data,
 			synaptics_rmi4_irq_enable(rmi4_data, false);
 		if (!rmi4_data->in_bootloader)
 			synaptics_dsx_state_config(rmi4_data, SUSPEND_IDX);
-			break;
+		break;
 
 	case STATE_ACTIVE:
 		if (!rmi4_data->in_bootloader)
@@ -2251,7 +2258,6 @@ static ssize_t synaptics_dsx_ud_stat(struct synaptics_rmi4_data *rmi4_data,
 static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	int retval;
 	unsigned int reset;
 	struct synaptics_rmi4_data *rmi4_data =
 					i2c_get_clientdata(to_i2c_client(dev));
@@ -2262,12 +2268,7 @@ static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 	if (reset != 1)
 		return -EINVAL;
 
-	retval = synaptics_dsx_ic_reset(rmi4_data, RMI4_HW_RESET);
-	if (retval > 0)
-		pr_debug("successful reset took %dms\n", retval);
-	else
-		dev_warn(&rmi4_data->i2c_client->dev, "%s: timed out waiting for idle\n",
-			__func__);
+	synaptics_dsx_ic_reset(rmi4_data, true);
 
 	return count;
 }
@@ -3705,6 +3706,9 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 					__func__);
 			return retval;
 		}
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+		irq_set_irq_wake(rmi4_data->irq, 1);
+#endif
 
 		dev_dbg(&rmi4_data->i2c_client->dev,
 				"%s: Started irq thread\n", __func__);
@@ -3715,6 +3719,10 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 			disable_irq(rmi4_data->irq);
 			free_irq(rmi4_data->irq, rmi4_data);
 			rmi4_data->irq_enabled = false;
+
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+		irq_set_irq_wake(rmi4_data->irq, 0);
+#endif
 
 		dev_dbg(&rmi4_data->i2c_client->dev,
 				"%s: Stopped irq thread\n", __func__);
@@ -5002,13 +5010,28 @@ EXPORT_SYMBOL(synaptics_rmi4_new_function);
 static void synaptics_dsx_free_patch(struct synaptics_dsx_patch *patch_set)
 {
 	struct synaptics_dsx_func_patch *fp, *next_list_entry;
-	down(&patch_set->list_sema);
+	mutex_lock(&patch_set->list_mutex);
 	list_for_each_entry_safe(fp, next_list_entry,
 				&patch_set->cfg_head, link) {
 		kfree(fp->data);
 		list_del(&fp->link);
 	}
-	up(&patch_set->list_sema);
+	mutex_unlock(&patch_set->list_mutex);
+	kfree(patch_set);
+}
+
+static void synaptics_dsx_modify_patch(struct synaptics_dsx_patch *patch_set,
+	struct synaptics_dsx_func_patch *patch, bool remove)
+{
+	mutex_lock(&patch_set->list_mutex);
+	if (!remove) {
+		list_add_tail(&patch->link, &patch_set->cfg_head);
+		patch_set->cfg_num++;
+	} else {
+		list_del(&patch->link);
+		patch_set->cfg_num--;
+	}
+	mutex_unlock(&patch_set->list_mutex);
 }
 
 static struct synaptics_dsx_patch *synaptics_dsx_init_patch(const char *name)
@@ -5017,7 +5040,7 @@ static struct synaptics_dsx_patch *synaptics_dsx_init_patch(const char *name)
 	patch_set = kzalloc(sizeof(struct synaptics_dsx_patch), GFP_KERNEL);
 	if (patch_set) {
 		patch_set->name = name;
-		sema_init(&patch_set->list_sema, 1);
+		mutex_init(&patch_set->list_mutex);
 		INIT_LIST_HEAD(&patch_set->cfg_head);
 	}
 	return patch_set;
@@ -5126,20 +5149,6 @@ static int rmi_reboot(struct notifier_block *nb,
 }
 
 #if defined(USB_CHARGER_DETECTION)
-static void synaptics_dsx_modify_patch(struct synaptics_dsx_patch *patch_set,
-	struct synaptics_dsx_func_patch *patch, bool remove)
-{
-	down(&patch_set->list_sema);
-	if (!remove) {
-		list_add_tail(&patch->link, &patch_set->cfg_head);
-		patch_set->cfg_num++;
-	} else {
-		list_del(&patch->link);
-		patch_set->cfg_num--;
-	}
-	up(&patch_set->list_sema);
-}
-
 /***************************************************************/
 /* USB charging source info from power_supply driver directly  */
 /***************************************************************/
@@ -5278,11 +5287,11 @@ static int ps_notifier_register(struct synaptics_rmi4_data *rmi4_data)
 	rmi4_data->psy.external_power_changed = ps_external_power_changed;
 
 	INIT_LIST_HEAD(&ps_patch[0].cfg_head);
-	sema_init(&ps_patch[0].list_sema, 1);
+	mutex_init(&ps_patch[0].list_mutex);
 	list_add_tail(&ps_clear.link, &ps_patch[0].cfg_head);
 
 	INIT_LIST_HEAD(&ps_patch[1].cfg_head);
-	sema_init(&ps_patch[1].list_sema, 1);
+	mutex_init(&ps_patch[1].list_mutex);
 	list_add_tail(&ps_set.link, &ps_patch[1].cfg_head);
 
 	error = power_supply_register(dev, &rmi4_data->psy);
@@ -5816,7 +5825,14 @@ static int synaptics_dsx_panel_cb(struct notifier_block *nb,
 	struct fb_event *evdata = data;
 	struct synaptics_rmi4_data *rmi4_data =
 		container_of(nb, struct synaptics_rmi4_data, panel_nb);
-
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+	bool prevent_sleep = (dt2w_switch > 0);
+			if (prevent_sleep) {
+				pr_debug("suspend avoided!\n");
+				synaptics_dsx_enable_wakeup_source(rmi4_data, true);
+				return 0;
+			} else {
+#endif
 	if ((event == rmi4_data->event_blank || event == FB_EVENT_BLANK) &&
 			evdata && evdata->info && evdata->info->node == 0 &&
 			evdata->data && rmi4_data) {
@@ -5835,6 +5851,9 @@ static int synaptics_dsx_panel_cb(struct notifier_block *nb,
 			synaptics_dsx_display_on(&rmi4_data->i2c_client->dev);
 		}
 	}
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+	}
+#endif
 
 	return 0;
 }
@@ -6006,6 +6025,12 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 	if (atomic_cmpxchg(&rmi4_data->touch_stopped, 0, 1) == 1)
 		return 0;
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+	if (dt2w_switch > 0) {
+		pr_info("suspend avoided!\n");
+		return 0;
+	} else {
+#endif
 
 	rmi4_data->flash_enabled = false;
 	synaptics_dsx_sensor_state(rmi4_data, STATE_SUSPEND);
@@ -6039,11 +6064,22 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 		rmi4_data->ic_on = false;
 	}
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+        }
+#endif
 
 	pm_qos_update_request(&rmi4_data->pm_qos_irq, PM_QOS_DEFAULT_VALUE);
 
 	return 0;
 }
+
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+void touch_suspend(void)
+{
+ 	synaptics_rmi4_suspend(&(exp_fn_ctrl.rmi4_data_ptr->input_dev->dev));
+}
+#endif
+
 
  /**
  * synaptics_rmi4_resume()
@@ -6131,6 +6167,13 @@ static int synaptics_rmi4_resume(struct device *dev)
 	synaptics_dsx_resumeinfo_finish(rmi4_data);
 	return 0;
 }
+
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+void touch_resume(void)
+{
+	synaptics_rmi4_resume(&(exp_fn_ctrl.rmi4_data_ptr->input_dev->dev));
+}
+#endif
 
 static const struct dev_pm_ops synaptics_rmi4_dev_pm_ops = {
 	.suspend = synaptics_rmi4_suspend,
