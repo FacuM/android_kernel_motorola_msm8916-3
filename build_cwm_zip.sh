@@ -17,13 +17,8 @@ else
  rm -f "$ZIPPATH/boot.img"
  make ARCH=arm -j10 zImage
  make ARCH=arm -j10 dtimage
- make ARCH=arm -j10 modules
  rm -rf squid_install
  mkdir -p squid_install
- make ARCH=arm -j10 modules_install INSTALL_MOD_PATH=squid_install INSTALL_MOD_STRIP=1
- mkdir -p "$ZIPPATH/system/lib/modules/pronto"
- find squid_install/ -name '*.ko' -type f -exec cp '{}' "$ZIPPATH/system/lib/modules/" \;
- mv "$ZIPPATH/system/lib/modules/wlan.ko" "$ZIPPATH/system/lib/modules/pronto/pronto_wlan.ko"
  cp arch/arm/boot/zImage "$ZIPPATH/tools/"
  cp arch/arm/boot/dt.img "$ZIPPATH/tools/"
  VERSION=$(cat Makefile | grep "EXTRAVERSION = -" | sed 's/EXTRAVERSION = -//')
