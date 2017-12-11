@@ -15,7 +15,12 @@ else
  rm -f arch/arm/boot/dts/*.dtb
  rm -f arch/arm/boot/dt.img
  rm -f "$ZIPPATH/boot.img"
- make ARCH=arm -j10 zImage
+ if [ -e "arch/arm/boot/zImage" ]
+ then
+  printf "The zImage is already present, skipping compilation.\nRun 'make -j32 clean' the next time if you want this script to build it.\n"
+ else
+  make ARCH=arm -j10 zImage
+ fi
  make ARCH=arm -j10 dtimage
  rm -rf squid_install
  mkdir -p squid_install
