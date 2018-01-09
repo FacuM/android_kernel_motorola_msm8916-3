@@ -869,12 +869,6 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	char *dropbox_issue = NULL;
 	static int dropbox_count;
 	static int panel_recovery_retry;
-	
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-	bool prevent_sleep = (dt2w_switch > 0);
-	if (prevent_sleep && in_phone_call)
-		prevent_sleep = false;
-#endif
 
 #ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
 	bool prevent_sleep = (dt2w_switch > 0);
@@ -996,12 +990,6 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
 	struct mdss_panel_info *pinfo;
-	
-#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
-	bool prevent_sleep = (dt2w_switch > 0);
-	if (prevent_sleep && in_phone_call)
-		prevent_sleep = false;
-#endif	
 
 #ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
 	bool prevent_sleep = (dt2w_switch > 0);
