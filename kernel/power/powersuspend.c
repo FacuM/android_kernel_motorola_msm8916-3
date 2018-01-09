@@ -139,6 +139,7 @@ abort_resume:
 void set_power_suspend_state(int new_state)
 {
 	unsigned long irqflags;
+	int old_sleep;
 
 	spin_lock_irqsave(&state_lock, irqflags);
 	if (state == POWER_SUSPEND_INACTIVE && new_state == POWER_SUSPEND_ACTIVE) {
