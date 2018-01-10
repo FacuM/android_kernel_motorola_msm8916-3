@@ -26,7 +26,7 @@
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 #define VFE40_BURST_LEN 1
-#define VFE40_BURST_LEN_8916_VERSION 2
+#define VFE40_BURST_LEN_8916_VERSION 3
 #define VFE40_STATS_BURST_LEN 1
 #define VFE40_STATS_BURST_LEN_8916_VERSION 2
 #define VFE40_UB_SIZE 1536 /* 1536 * 128 bits = 24KB */
@@ -186,11 +186,12 @@ static int32_t msm_vfe40_init_qos_parms(struct vfe_device *vfe_dev,
 					kfree(ds_settings);
 					kfree(ds_regs);
 	} else {
-					for (i = 0; i < ds_entries; i++)
+					for (i = 0; i < ds_entries; i++) {
 						msm_camera_io_w(ds_settings[i],
 							vfebase + ds_regs[i]);
 						kfree(ds_regs);
 						kfree(ds_settings);
+					}
 				}
 			} else {
 				kfree(ds_regs);
@@ -396,7 +397,7 @@ static void msm_vfe40_init_hardware_reg(struct vfe_device *vfe_dev)
 	msm_vfe40_init_qos_parms(vfe_dev, &qos_parms, &ds_parms);
 	msm_vfe40_init_vbif_parms(vfe_dev, &vbif_parms);
 	/* BUS_CFG */
-	msm_camera_io_w(0x10000001, vfe_dev->vfe_base + 0x50);
+	msm_camera_io_w(0x10000009, vfe_dev->vfe_base + 0x50);
 	msm_camera_io_w(0xE00000F1, vfe_dev->vfe_base + 0x28);
 	msm_camera_io_w_mb(0xFEFFFFFF, vfe_dev->vfe_base + 0x2C);
 	msm_camera_io_w(0xFFFFFFFF, vfe_dev->vfe_base + 0x30);
