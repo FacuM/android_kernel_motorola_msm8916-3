@@ -6,6 +6,9 @@
 
 wm97xx-ts-y := wm97xx-core.o
 
+# for sweep2wake, leave 1st to avoid merge issues at the end of the file
+obj-$(CONFIG_TOUCHSCREEN_SWEEP2WAKE)	+= sweep2wake.o
+
 obj-$(CONFIG_TOUCHSCREEN_88PM860X)	+= 88pm860x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_AD7877)	+= ad7877.o
 obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
@@ -88,5 +91,5 @@ obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_TEST_REPORTING) += synaptics_dsx_test_rep
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE_MMI) += synaptics_dsx_fw_update.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHX)	+= touchx.o
 obj-$(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE) += doubletap2wake.o
-obj-$(CONFIG_SWEEP2SLEEP)		+= sweep2sleep.o
 obj-$(CONFIG_TOUCHBOOST_CONTROL) += touchboost.o
+obj-y				 += wake_helpers.o
