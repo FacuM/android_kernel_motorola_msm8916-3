@@ -6992,7 +6992,7 @@ void idle_balance(int this_cpu, struct rq *this_rq)
 		}
 
 		interval = msecs_to_jiffies(sd->balance_interval);
-		if (time_after(next_balance, sd->last_balance + interval))
+		if (time_after(next_balance, sd->last_balance + interval)) {
 			next_balance = sd->last_balance + interval;
 
 		/*
@@ -7002,6 +7002,7 @@ void idle_balance(int this_cpu, struct rq *this_rq)
 		if (pulled_task || this_rq->nr_running > 0) {
 			balance_rq->idle_stamp = 0;
 			break;
+			}
 		}
 	}
 	rcu_read_unlock();
