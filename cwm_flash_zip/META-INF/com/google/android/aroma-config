@@ -5,7 +5,7 @@ ini_set("force_colorspace",     "rgba");
 # Initializing Rom Information
 #
 ini_set("rom_name",             "SomeFeaK 2");
-ini_set("rom_version",          "5.00");
+ini_set("rom_version",          "5.50");
 ini_set("rom_author",           "facuarmo");
 ini_set("rom_device",           "harpia");
 ini_set("rom_date",             "Nov, 5 2017");

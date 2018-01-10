@@ -1,3 +1,4 @@
+HOSTCFLAGS += -Wno-misleading-indentation
 ifeq ($(CONFIG_FIPS_ENABLE), y)
 	obj-$(CONFIG_CRYPTO_DEV_QCEDEV) += qcedev_fips.o
 endif
