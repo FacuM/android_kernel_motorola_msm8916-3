@@ -2815,7 +2815,7 @@ static int msm_spi_pm_resume_runtime(struct device *device)
 		get_local_resources(dd);
 
 	msm_spi_clk_path_init(dd);
-	if (!dd->pdata->active_only) {
+	if (!dd->pdata->active_only)
 		msm_spi_clk_path_vote(dd);
 
 		if (!dd->pdata->is_shared && dd->use_dma) {
@@ -2824,7 +2824,6 @@ static int msm_spi_pm_resume_runtime(struct device *device)
 			msm_spi_bam_pipe_connect(dd, &dd->bam.cons,
 				&dd->bam.cons.config);
 		}
-	}
 
 	dd->suspended = 0;
 
